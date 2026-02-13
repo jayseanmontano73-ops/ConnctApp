@@ -322,3 +322,90 @@ Use **role-based access control** with two scopes:
 - Event RSVP-to-attendance conversion
 - Emergency alert delivery success rate
 - Safety metrics: report resolution SLA and repeat offender rates
+
+---
+
+## 15) How to Test This Blueprint (Practical Validation Plan)
+
+Since this is currently an architecture/product blueprint, testing means validating that implementation (or prototypes) satisfy the documented requirements.
+
+### A. What to test first (MVP acceptance)
+1. **Auth works**: user can sign up, verify email/phone, log in, and persist session.
+2. **Space creation works**: leader can create a space with branding and module toggles.
+3. **Join via code works**: second user can join the space with a valid code.
+4. **Announcements work**: moderator can post and pin announcement; member can read.
+5. **Group chat works**: users in same space can exchange real-time messages.
+6. **Education post works**: staff can create assignment with deadline + attachment.
+7. **Events work**: moderator creates event; member can RSVP.
+8. **Profile works**: user can view/edit profile and see joined spaces.
+
+### B. Manual QA checklist by role
+
+#### Super Admin
+- Can view/manage spaces and user moderation reports.
+- Can enforce global policy actions.
+
+#### Space Owner
+- Can configure modules and branding.
+- Can promote moderator.
+- Can issue emergency alert (if module enabled).
+
+#### Moderator/Staff
+- Can create announcements, events, and education posts.
+- Cannot change owner-only settings.
+
+#### Member
+- Can join via code and consume enabled modules.
+- Cannot access restricted role chats or admin configuration pages.
+
+### C. API-level smoke tests (example using cURL)
+> Replace placeholders like `<TOKEN>` and `<SPACE_ID>`.
+
+```bash
+# 1) Login
+curl -X POST http://localhost:3000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"leader@example.com","password":"Passw0rd!"}'
+
+# 2) Create space
+curl -X POST http://localhost:3000/spaces \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Barangay 101","themeColor":"#2A7FFF","modules":{"announcements":true,"chat":true,"education":true,"events":true}}'
+
+# 3) Join space by code
+curl -X POST http://localhost:3000/spaces/<SPACE_ID>/join \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"joinCode":"ABC123"}'
+
+# 4) Post announcement
+curl -X POST http://localhost:3000/spaces/<SPACE_ID>/announcements \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Class Suspension","body":"No classes tomorrow","category":"School","pinned":true}'
+
+# 5) Create event
+curl -X POST http://localhost:3000/spaces/<SPACE_ID>/events \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Parent Meeting","startsAt":"2026-06-20T09:00:00Z"}'
+```
+
+### D. Security and permission tests
+- Verify users cannot access records from spaces they are not members of (`space_id` isolation).
+- Verify member role cannot perform moderator/owner actions.
+- Verify blocked user cannot send DM/chat in the affected scope.
+- Verify child account policies block restricted actions unless guardian consent exists.
+
+### E. Non-functional validation
+- Load test chat + announcements concurrently (e.g., k6) and confirm p95 latency targets.
+- Verify notification retries and dead-letter handling for failed push/SMS deliveries.
+- Verify audit logs are recorded for role changes, content removals, and emergency alerts.
+
+### F. Definition of Done for MVP
+MVP is considered test-passed when:
+- All 8 MVP acceptance scenarios in section A pass.
+- Role-based restrictions pass for Owner, Moderator, Member.
+- No cross-space data leakage is observed.
+- Critical flows (login, join, post announcement, chat, RSVP) meet performance baseline.
